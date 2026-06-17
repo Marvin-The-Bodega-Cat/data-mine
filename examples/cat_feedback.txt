@@ -1,0 +1,8 @@
+We need a wallet-linked feedback map so downstream contributors can prove what changed.
+The pyramid joke is funny, but the incentive explanation is muddy.
+People keep asking how to find the first artifact worth building.
+A searchable block of feedback would help us mine repeated requests.
+This claims to reward negative feedback, but it might accidentally reward performative criticism.
+Someone should build a data mine that turns messy archives into t0 build seeds.
+The trust-network tip idea is strong, but the wallet connection could look scammy if unexplained.
+People keep asking for a way to search project archives for missing tools.

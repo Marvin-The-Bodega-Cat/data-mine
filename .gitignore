@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+dist/
+*.egg-info/
+
+# Real/private mined data
+blocks/*.private.json
+blocks/*.private.jsonl
+artifacts/*.private.json
+artifacts/*.private.jsonl
+*.private.json
+*.private.jsonl
+.env
+.env.*
+!.env.example
+
+# Local runs
+.mine/
+runs/

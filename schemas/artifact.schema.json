@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataMineArtifact",
+  "type": "object",
+  "required": ["artifact_id", "block_id", "kind", "title", "summary", "evidence", "score", "miner", "created_at"],
+  "properties": {
+    "artifact_id": {"type": "string"},
+    "block_id": {"type": "string"},
+    "kind": {"type": "string"},
+    "title": {"type": "string"},
+    "summary": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "object"}},
+    "score": {"type": "object"},
+    "miner": {"type": "string"},
+    "created_at": {"type": "string"}
+  }
+}

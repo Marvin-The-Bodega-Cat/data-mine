@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataMineBlock",
+  "type": "object",
+  "required": ["block_id", "title", "source", "created_at", "records"],
+  "properties": {
+    "block_id": {"type": "string"},
+    "title": {"type": "string"},
+    "source": {"type": "string"},
+    "created_at": {"type": "string"},
+    "records": {"type": "array", "items": {"type": "object"}},
+    "dimensions": {"type": "array", "items": {"type": "string"}}
+  }
+}
