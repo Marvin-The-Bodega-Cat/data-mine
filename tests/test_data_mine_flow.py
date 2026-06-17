@@ -42,3 +42,25 @@ def test_cli_block_mine_search_seed(tmp_path: Path, capsys):
     seed=json.loads(out.read_text())
     assert seed["block_id"] == "b1"
     _=capsys.readouterr()
+
+
+def test_cli_build_repo_produces_runnable_repo(tmp_path: Path, capsys):
+    text=tmp_path/"input.txt"
+    text.write_text(
+        "People keep asking for a search tool.\n"
+        "Build a search tool for artifacts.\n",
+        encoding="utf-8",
+    )
+    store=tmp_path/"mine"
+    main(["--store", str(store), "init"])
+    main(["--store", str(store), "block", "create", "--block-id", "b2", "--title", "Block 2", "--source", "synthetic", "--text", str(text)])
+    main(["--store", str(store), "mine", "--block-id", "b2", "--miner", "build-seeds"])
+    artifact_id=json.loads(next((store/"artifacts").glob("*.json")).read_text())["artifact_id"]
+    repo=tmp_path/"generated-repo"
+    main(["--store", str(store), "build-repo", "--artifact-id", artifact_id, "--output-dir", str(repo)])
+    assert (repo/"pyproject.toml").exists()
+    assert (repo/"data"/"build_seed.json").exists()
+    import subprocess, sys
+    result=subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=repo, text=True, capture_output=True, check=True)
+    assert "2 passed" in result.stdout
+    _=capsys.readouterr()

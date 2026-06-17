@@ -4,8 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
-from .models import Block, BuildSeed, Record, stable_id
+from .models import Block, Record
 from .miners import MinerRegistry
+from .repo_builder import build_seed_from_artifact, render_repo
 from .search import search_artifacts, search_blocks
 from .store import MineStore
 
@@ -65,19 +66,19 @@ def cmd_search(args: argparse.Namespace) -> None:
 def cmd_start_build(args: argparse.Namespace) -> None:
     s=store(args)
     artifact=s.load_artifact(args.artifact_id)
-    seed=BuildSeed(
-        seed_id=stable_id("seed", artifact.artifact_id),
-        block_id=artifact.block_id,
-        artifact_id=artifact.artifact_id,
-        thesis=f"Build from artifact: {artifact.title}",
-        evidence=artifact.evidence,
-        recommended_first_files=["README.md", "docs/architecture.md", "schemas/artifact.schema.json", "src/", "tests/"],
-        falsification_check="If this artifact cannot produce a working CLI/API smoke test from its evidence, demote it back to research.",
-    )
+    seed=build_seed_from_artifact(artifact)
     out=Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(seed.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
     print(str(out))
+
+
+def cmd_build_repo(args: argparse.Namespace) -> None:
+    s=store(args)
+    artifact=s.load_artifact(args.artifact_id)
+    seed=build_seed_from_artifact(artifact)
+    out=render_repo(seed, artifact, args.output_dir, force=args.force)
+    print(json.dumps({"repo": str(out), "seed_id": seed.seed_id, "artifact_id": artifact.artifact_id}, indent=2, sort_keys=True))
 
 
 def cmd_list_miners(args: argparse.Namespace) -> None:
@@ -118,6 +119,12 @@ def build_parser() -> argparse.ArgumentParser:
     seed.add_argument("--artifact-id", required=True)
     seed.add_argument("--output", required=True)
     seed.set_defaults(func=cmd_start_build)
+
+    repo=sub.add_parser("build-repo")
+    repo.add_argument("--artifact-id", required=True)
+    repo.add_argument("--output-dir", required=True)
+    repo.add_argument("--force", action="store_true")
+    repo.set_defaults(func=cmd_build_repo)
 
     miners=sub.add_parser("miners")
     miners.set_defaults(func=cmd_list_miners)

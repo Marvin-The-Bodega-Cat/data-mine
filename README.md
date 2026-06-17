@@ -32,6 +32,8 @@ datamine mine --store .mine --block-id cat-feedback --miner repeated-requests
 datamine mine --store .mine --block-id cat-feedback --miner contradictions
 datamine search --store .mine --query wallet
 datamine start-build --store .mine --artifact-id <artifact-id> --output /tmp/build_seed.json
+datamine build-repo --store .mine --artifact-id <artifact-id> --output-dir /tmp/generated-build
+cd /tmp/generated-build && python -m pytest -q
 ```
 
 ## Public/private boundary
