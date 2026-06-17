@@ -57,6 +57,64 @@ def test_community_archive_source_reads_tweets_from_archive_fixture(tmp_path: Pa
     assert records[0].metadata["mentions"] == ["alice"]
 
 
+def test_community_archive_source_merges_incremental_rows_and_dedupes(tmp_path: Path):
+    archive = tmp_path / "archive.json"
+    archive.write_text(json.dumps({
+        "account": [{"account": {"username": "BodegaCat"}}],
+        "tweets": [
+            {"tweet": {
+                "id_str": "111",
+                "created_at": "Tue Nov 19 18:15:48 +0000 2024",
+                "full_text": "Build the wallet feedback archive base.",
+                "favorite_count": "3",
+                "retweet_count": "2",
+                "lang": "en",
+                "entities": {},
+            }},
+        ],
+    }), encoding="utf-8")
+    incremental = tmp_path / "incremental.jsonl"
+    incremental.write_text(
+        json.dumps({
+            "id_str": "111",
+            "created_at": "Tue Nov 19 18:15:48 +0000 2024",
+            "full_text": "Duplicate overlap row should not appear twice.",
+            "favorite_count": "4",
+            "retweet_count": "2",
+            "lang": "en",
+            "entities": {},
+        }) + "\n" +
+        json.dumps({
+            "tweet_id": "333",
+            "created_at": "Thu Nov 21 18:15:48 +0000 2024",
+            "text": "Fresh wallet feedback after the archive upload.",
+            "favorite_count": 7,
+            "retweet_count": 1,
+            "lang": "en",
+            "source_dataset": "api_incremental",
+            "entities": {"hashtags": [{"text": "fresh"}]},
+        }) + "\n",
+        encoding="utf-8",
+    )
+    spec = SourceSpec.from_dict({
+        "name": "bodega-fresh",
+        "adapter": "community-archive",
+        "location": "BodegaCat",
+        "query": {"include_terms": ["wallet"]},
+        "metadata": {"archive_path": str(archive), "incremental_path": str(incremental)},
+    })
+
+    records = SourceRegistry().query(spec)
+
+    assert [record.metadata["tweet_id"] for record in records] == ["111", "333"]
+    assert records[0].metadata["source_dataset"] == "community_archive_raw"
+    assert records[0].text == "Build the wallet feedback archive base."
+    assert records[1].metadata["source_dataset"] == "api_incremental"
+    assert records[1].metadata["url"] == "https://x.com/bodegacat/status/333"
+    assert records[1].metadata["created_at"] == "2024-11-21T18:15:48+00:00"
+    assert records[1].metadata["hashtags"] == ["fresh"]
+
+
 def test_source_pipeline_builds_ordered_block(tmp_path: Path):
     text = tmp_path / "notes.txt"
     text.write_text("Need wallet search.\nIgnore boring line.\nBuild artifact index.\n", encoding="utf-8")

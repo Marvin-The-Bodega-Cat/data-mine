@@ -54,9 +54,25 @@ For deterministic tests or cached runs, pass a local raw archive file:
 }
 ```
 
-Emitted metadata includes `username`, `tweet_id`, `url`, `created_at`, engagement counts, source label, hashtags, mentions, and `source_dataset=community_archive_raw`.
+To close the archive freshness gap, pass incremental capture files:
 
-Freshness caveat: raw Community Archive JSON is only complete up to that user's archive upload. Later extension/API captures need an incremental adapter path; pretending the old blob is current would be the usual tiny fraud with better formatting.
+```json
+{
+  "name": "fresh-account",
+  "adapter": "community-archive",
+  "location": "somehandle",
+  "metadata": {
+    "archive_path": "artifacts/community_archive/raw/somehandle.archive.json",
+    "incremental_path": "artifacts/community_archive/incremental/somehandle.after-upload.jsonl"
+  }
+}
+```
+
+`incremental_path` or `incremental_paths` may point to JSONL, a JSON array, or a JSON object with `tweets`, `records`, or `rows`. Rows may use Community Archive shape (`{"tweet": {...}}`), raw tweet fields (`id_str`, `full_text`), or normalized fields (`tweet_id`, `text`). The adapter appends archive rows first, then incremental rows, dedupes by tweet ID, and keeps the first row for overlap windows. That makes 1-7 day overlap pulls safe without double-counting.
+
+Emitted metadata includes `username`, `tweet_id`, `url`, `created_at`, engagement counts, source label, hashtags, mentions, and `source_dataset`.
+
+Freshness caveat: raw Community Archive JSON is only complete up to that user's archive upload. Incremental captures are explicit files for now; live API fetch belongs behind a separate credentialed fetch step, not a hidden network surprise inside block creation.
 
 ## Ordered source pipelines
 

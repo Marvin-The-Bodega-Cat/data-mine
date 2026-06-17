@@ -152,12 +152,16 @@ class CommunityArchiveSourceAdapter:
         if not username:
             username = _username_from_archive(archive)
         records: list[Record] = []
-        for row in archive.get("tweets", []):
-            tweet = row.get("tweet", row)
+        seen_tweet_ids: set[str] = set()
+        for tweet, source_dataset in _iter_community_archive_rows(spec, archive):
             text = str(tweet.get("full_text") or tweet.get("text") or "").strip()
             if not text or not spec.query.matches(text):
                 continue
-            tweet_id = str(tweet.get("id_str") or tweet.get("id") or "").strip()
+            tweet_id = _tweet_id(tweet)
+            if tweet_id and tweet_id in seen_tweet_ids:
+                continue
+            if tweet_id:
+                seen_tweet_ids.add(tweet_id)
             record_id = f"{spec.name}-t{tweet_id}" if tweet_id else f"{spec.name}-r{len(records)+1:04d}"
             records.append(
                 Record(
@@ -167,7 +171,7 @@ class CommunityArchiveSourceAdapter:
                         "source": spec.name,
                         "adapter": spec.adapter,
                         "location": spec.location,
-                        "source_dataset": "community_archive_raw",
+                        "source_dataset": str(tweet.get("source_dataset") or source_dataset),
                         "username": username,
                         "tweet_id": tweet_id or None,
                         "url": f"https://x.com/{username}/status/{tweet_id}" if username and tweet_id else None,
@@ -220,6 +224,45 @@ def _load_community_archive(spec: SourceSpec, username: str) -> dict[str, Any]:
         archive_url = f"{CommunityArchiveSourceAdapter.storage_base}/{username}/archive.json"
     with urllib.request.urlopen(str(archive_url), timeout=int(spec.metadata.get("timeout_seconds", 120))) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _iter_community_archive_rows(spec: SourceSpec, archive: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
+    rows: list[tuple[dict[str, Any], str]] = []
+    for row in archive.get("tweets", []):
+        rows.append((row.get("tweet", row), "community_archive_raw"))
+    for path in _incremental_paths(spec):
+        for row in _load_incremental_rows(path):
+            rows.append((row.get("tweet", row), str(row.get("source_dataset") or "community_archive_incremental")))
+    return rows
+
+
+def _incremental_paths(spec: SourceSpec) -> list[Path]:
+    paths: list[str] = []
+    if spec.metadata.get("incremental_path"):
+        paths.append(str(spec.metadata["incremental_path"]))
+    paths.extend(str(path) for path in spec.metadata.get("incremental_paths", []))
+    return [Path(path) for path in paths]
+
+
+def _load_incremental_rows(path: Path) -> list[dict[str, Any]]:
+    if path.suffix == ".jsonl":
+        rows = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+        return rows
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        return [row for row in data if isinstance(row, dict)]
+    if isinstance(data, dict):
+        values = data.get("tweets") or data.get("records") or data.get("rows") or []
+        return [row for row in values if isinstance(row, dict)]
+    return []
+
+
+def _tweet_id(tweet: dict[str, Any]) -> str:
+    return str(tweet.get("id_str") or tweet.get("tweet_id") or tweet.get("id") or "").strip()
 
 
 def _normalize_username(value: str) -> str:

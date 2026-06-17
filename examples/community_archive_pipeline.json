@@ -10,7 +10,8 @@
         "limit": 50
       },
       "metadata": {
-        "note": "Fetches public raw Community Archive JSON from Supabase Storage unless archive_path or archive_url is provided."
+        "incremental_path": "examples/community_archive_incremental.jsonl",
+        "note": "Fetches public raw Community Archive JSON from Supabase Storage unless archive_path or archive_url is provided; merges optional incremental JSON/JSONL captures and dedupes by tweet ID."
       }
     }
   ]
