@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataMineSourcePipeline",
+  "type": "object",
+  "required": ["sources"],
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "adapter"],
+        "properties": {
+          "name": {"type": "string"},
+          "adapter": {"type": "string"},
+          "location": {"type": "string"},
+          "query": {
+            "type": "object",
+            "properties": {
+              "include_terms": {"type": "array", "items": {"type": "string"}},
+              "exclude_terms": {"type": "array", "items": {"type": "string"}},
+              "limit": {"type": "integer", "minimum": 1}
+            }
+          },
+          "metadata": {"type": "object"}
+        }
+      }
+    }
+  }
+}

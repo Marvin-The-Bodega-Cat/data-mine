@@ -27,7 +27,9 @@ pip install -e '.[dev]'
 pytest -q
 
 datamine init --store .mine
+datamine sources
 datamine block create --store .mine --block-id cat-feedback --title "Cat feedback batch" --source synthetic --text examples/cat_feedback.txt
+datamine block from-sources --store .mine --block-id source-pilot --title "Source pilot" --config examples/source_pipeline.json
 datamine mine --store .mine --block-id cat-feedback --miner repeated-requests
 datamine mine --store .mine --block-id cat-feedback --miner contradictions
 datamine search --store .mine --query wallet

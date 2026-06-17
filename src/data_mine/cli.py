@@ -8,6 +8,7 @@ from .models import Block, Record
 from .miners import MinerRegistry
 from .repo_builder import build_seed_from_artifact, render_repo
 from .search import search_artifacts, search_blocks
+from .sources import SourceRegistry, build_block_from_sources, load_source_specs, source_config_fingerprint
 from .store import MineStore
 
 
@@ -42,6 +43,26 @@ def cmd_block_create(args: argparse.Namespace) -> None:
     )
     path=s.save_block(block)
     print(json.dumps({"block_id": block.block_id, "records": len(records), "path": str(path)}, indent=2))
+
+
+def cmd_block_from_sources(args: argparse.Namespace) -> None:
+    s=store(args)
+    block=build_block_from_sources(
+        block_id=args.block_id,
+        title=args.title,
+        source_config_path=args.config,
+        description=args.description or "",
+        dimensions=args.dimension,
+    )
+    path=s.save_block(block)
+    source_count=len(load_source_specs(args.config))
+    print(json.dumps({
+        "block_id": block.block_id,
+        "records": len(block.records),
+        "sources": source_count,
+        "source_config_fingerprint": source_config_fingerprint(args.config),
+        "path": str(path),
+    }, indent=2, sort_keys=True))
 
 
 def cmd_mine(args: argparse.Namespace) -> None:
@@ -85,6 +106,10 @@ def cmd_list_miners(args: argparse.Namespace) -> None:
     print(json.dumps(MinerRegistry().names(), indent=2))
 
 
+def cmd_list_sources(args: argparse.Namespace) -> None:
+    print(json.dumps(SourceRegistry().names(), indent=2))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser=argparse.ArgumentParser(prog="datamine")
     parser.add_argument("--store", default=".mine")
@@ -103,6 +128,14 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--dimension", action="append", default=[])
     create.add_argument("--description")
     create.set_defaults(func=cmd_block_create)
+
+    from_sources=bsub.add_parser("from-sources")
+    from_sources.add_argument("--block-id", required=True)
+    from_sources.add_argument("--title", required=True)
+    from_sources.add_argument("--config", required=True)
+    from_sources.add_argument("--dimension", action="append", default=[])
+    from_sources.add_argument("--description")
+    from_sources.set_defaults(func=cmd_block_from_sources)
 
     mine=sub.add_parser("mine")
     mine.add_argument("--block-id", required=True)
@@ -128,6 +161,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     miners=sub.add_parser("miners")
     miners.set_defaults(func=cmd_list_miners)
+
+    sources=sub.add_parser("sources")
+    sources.set_defaults(func=cmd_list_sources)
     return parser
 
 

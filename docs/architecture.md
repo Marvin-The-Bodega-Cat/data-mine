@@ -3,7 +3,7 @@
 ## Flow
 
 ```text
-raw material -> Block -> MinerFunction(s) -> Artifact(s) -> BuildSeed -> repo/project t0
+raw material -> SourceAdapter(s) -> SourceQuery -> Block -> MinerFunction(s) -> Artifact(s) -> BuildSeed -> repo/project t0
 ```
 
 ## Design rules

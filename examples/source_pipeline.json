@@ -1,0 +1,38 @@
+{
+  "sources": [
+    {
+      "name": "cat-text",
+      "adapter": "text-file",
+      "location": "examples/cat_feedback.txt",
+      "query": {
+        "include_terms": ["wallet", "search", "build"],
+        "limit": 5
+      },
+      "metadata": {
+        "note": "Synthetic text feedback source."
+      }
+    },
+    {
+      "name": "source-notes",
+      "adapter": "jsonl",
+      "location": "examples/source_notes.jsonl",
+      "query": {
+        "include_terms": ["wallet", "blocks", "artifact"],
+        "exclude_terms": ["private"]
+      },
+      "metadata": {
+        "text_field": "text"
+      }
+    },
+    {
+      "name": "inline-hypotheses",
+      "adapter": "inline",
+      "metadata": {
+        "items": [
+          "A source adapter should be queryable before it becomes a block.",
+          "Ordered sources let a block explain what evidence arrived first."
+        ]
+      }
+    }
+  ]
+}

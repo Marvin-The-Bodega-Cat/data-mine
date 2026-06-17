@@ -4,6 +4,26 @@ from pathlib import Path
 from data_mine.cli import main
 from data_mine.models import Block, Record
 from data_mine.miners import MinerRegistry
+from data_mine.sources import SourceRegistry, build_block_from_sources
+
+
+def test_source_pipeline_builds_ordered_block(tmp_path: Path):
+    text = tmp_path / "notes.txt"
+    text.write_text("Need wallet search.\nIgnore boring line.\nBuild artifact index.\n", encoding="utf-8")
+    jsonl = tmp_path / "events.jsonl"
+    jsonl.write_text('{"text":"Blocks need source order."}\n{"text":"Private record should skip."}\n', encoding="utf-8")
+    config = tmp_path / "sources.json"
+    config.write_text(json.dumps({
+        "sources": [
+            {"name": "notes", "adapter": "text-file", "location": str(text), "query": {"include_terms": ["wallet", "artifact"]}},
+            {"name": "events", "adapter": "jsonl", "location": str(jsonl), "query": {"include_terms": ["blocks"], "exclude_terms": ["private"]}},
+            {"name": "inline", "adapter": "inline", "metadata": {"items": ["Inline source can seed a block."]}},
+        ]
+    }), encoding="utf-8")
+    block = build_block_from_sources("b-sources", "Source block", config)
+    assert [r.record_id.split("-")[0] for r in block.records] == ["s01", "s01", "s02", "s03"]
+    assert len(block.records) == 4
+    assert SourceRegistry().names() == ["directory-text", "inline", "jsonl", "text-file"]
 
 
 def test_repeated_requests_miner_finds_artifacts():
