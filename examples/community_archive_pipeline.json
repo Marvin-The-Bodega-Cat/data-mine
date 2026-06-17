@@ -1,0 +1,17 @@
+{
+  "sources": [
+    {
+      "name": "defender-feedback",
+      "adapter": "community-archive",
+      "location": "defenderofbasic",
+      "query": {
+        "include_terms": ["build", "wallet", "feedback", "research"],
+        "exclude_terms": ["private"],
+        "limit": 50
+      },
+      "metadata": {
+        "note": "Fetches public raw Community Archive JSON from Supabase Storage unless archive_path or archive_url is provided."
+      }
+    }
+  ]
+}

@@ -4,7 +4,57 @@ from pathlib import Path
 from data_mine.cli import main
 from data_mine.models import Block, Record
 from data_mine.miners import MinerRegistry
-from data_mine.sources import SourceRegistry, build_block_from_sources
+from data_mine.sources import SourceRegistry, SourceSpec, build_block_from_sources
+
+
+def test_community_archive_source_reads_tweets_from_archive_fixture(tmp_path: Path):
+    archive = tmp_path / "archive.json"
+    archive.write_text(json.dumps({
+        "account": [{"account": {"username": "BodegaCat"}}],
+        "tweets": [
+            {"tweet": {
+                "id_str": "111",
+                "created_at": "Tue Nov 19 18:15:48 +0000 2024",
+                "full_text": "Launch the wallet feedback game. https://t.co/x",
+                "favorite_count": "3",
+                "retweet_count": "2",
+                "lang": "en",
+                "source": "<a href=\"http://twitter.com/download/iphone\">Twitter for iPhone</a>",
+                "entities": {"hashtags": [{"text": "pyramid"}], "user_mentions": [{"screen_name": "alice"}]},
+            }},
+            {"tweet": {
+                "id_str": "222",
+                "created_at": "Wed Nov 20 18:15:48 +0000 2024",
+                "full_text": "Private draft should not enter the block.",
+                "favorite_count": "0",
+                "retweet_count": "0",
+                "lang": "en",
+                "entities": {},
+            }},
+        ],
+    }), encoding="utf-8")
+    spec = SourceSpec.from_dict({
+        "name": "bodega-archive",
+        "adapter": "community-archive",
+        "location": "BodegaCat",
+        "query": {"include_terms": ["wallet"], "exclude_terms": ["private"]},
+        "metadata": {"archive_path": str(archive)},
+    })
+
+    records = SourceRegistry().query(spec)
+
+    assert len(records) == 1
+    assert records[0].record_id == "bodega-archive-t111"
+    assert records[0].text == "Launch the wallet feedback game. https://t.co/x"
+    assert records[0].metadata["tweet_id"] == "111"
+    assert records[0].metadata["username"] == "bodegacat"
+    assert records[0].metadata["url"] == "https://x.com/bodegacat/status/111"
+    assert records[0].metadata["created_at"] == "2024-11-19T18:15:48+00:00"
+    assert records[0].metadata["favorite_count"] == 3
+    assert records[0].metadata["retweet_count"] == 2
+    assert records[0].metadata["source_label"] == "Twitter for iPhone"
+    assert records[0].metadata["hashtags"] == ["pyramid"]
+    assert records[0].metadata["mentions"] == ["alice"]
 
 
 def test_source_pipeline_builds_ordered_block(tmp_path: Path):
@@ -23,7 +73,7 @@ def test_source_pipeline_builds_ordered_block(tmp_path: Path):
     block = build_block_from_sources("b-sources", "Source block", config)
     assert [r.record_id.split("-")[0] for r in block.records] == ["s01", "s01", "s02", "s03"]
     assert len(block.records) == 4
-    assert SourceRegistry().names() == ["directory-text", "inline", "jsonl", "text-file"]
+    assert SourceRegistry().names() == ["community-archive", "directory-text", "inline", "jsonl", "text-file"]
 
 
 def test_repeated_requests_miner_finds_artifacts():

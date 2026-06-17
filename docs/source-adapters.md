@@ -15,6 +15,7 @@ A source is not a block. A source is live-ish infrastructure or a local file. A 
 - `text-file`: reads non-empty lines from one text file.
 - `directory-text`: reads matching text files from a directory in sorted order.
 - `jsonl`: reads JSONL and extracts a configured text field.
+- `community-archive`: reads public X/Twitter archive tweets from Community Archive raw JSON.
 - `inline`: takes literal strings from config for small hypotheses/tests.
 
 ## Query rules
@@ -26,6 +27,36 @@ Each source can specify:
 - `limit`: max records from that source.
 
 This is intentionally primitive. Primitive filters have the virtue of failing where you can see them.
+
+## Community Archive adapter
+
+Use `community-archive` when a source should be an archived public X/Twitter account.
+
+Minimal remote config:
+
+```json
+{
+  "name": "defender-feedback",
+  "adapter": "community-archive",
+  "location": "defenderofbasic",
+  "query": {"include_terms": ["build", "feedback"], "limit": 50}
+}
+```
+
+For deterministic tests or cached runs, pass a local raw archive file:
+
+```json
+{
+  "name": "cached-account",
+  "adapter": "community-archive",
+  "location": "somehandle",
+  "metadata": {"archive_path": "artifacts/community_archive/raw/somehandle.archive.json"}
+}
+```
+
+Emitted metadata includes `username`, `tweet_id`, `url`, `created_at`, engagement counts, source label, hashtags, mentions, and `source_dataset=community_archive_raw`.
+
+Freshness caveat: raw Community Archive JSON is only complete up to that user's archive upload. Later extension/API captures need an incremental adapter path; pretending the old blob is current would be the usual tiny fraud with better formatting.
 
 ## Ordered source pipelines
 
