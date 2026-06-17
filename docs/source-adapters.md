@@ -74,7 +74,7 @@ Emitted metadata includes `username`, `tweet_id`, `url`, `created_at`, engagemen
 
 Freshness caveat: raw Community Archive JSON is only complete up to that user's archive upload. Incremental captures are explicit files for now; live API fetch belongs behind a separate credentialed fetch step, not a hidden network surprise inside block creation.
 
-Create an API-backed incremental capture file with:
+Create an API-backed incremental capture file with explicit checkpoint/output:
 
 ```bash
 export COMMUNITY_ARCHIVE_ANON_KEY='...'
@@ -82,6 +82,28 @@ datamine community-archive capture-incremental \
   --username defenderofbasic \
   --since-tweet-id <last-seen-tweet-id> \
   --output artifacts/community_archive/incremental/defenderofbasic.incremental.jsonl
+```
+
+Or let the helper derive both from the archive plus prior incremental capture files:
+
+```bash
+datamine community-archive capture-incremental \
+  --username defenderofbasic \
+  --archive-path artifacts/community_archive/raw/defenderofbasic.archive.json \
+  --incremental-path artifacts/community_archive/incremental/defenderofbasic.after-222.jsonl \
+  --output-dir artifacts/community_archive/incremental
+```
+
+The helper scans raw archive rows and prior incremental rows, finds the max `tweet_id` plus latest `created_at`, and writes to a deterministic filename:
+
+```text
+<username>.after-<max-tweet-id>.jsonl
+```
+
+If there is no checkpoint, it uses:
+
+```text
+<username>.initial.jsonl
 ```
 
 The command resolves `username -> account_id`, pages the PostgREST `tweets` table, normalizes rows to JSONL, and writes `source_dataset=api_incremental`. That file can then be listed under `incremental_path` or `incremental_paths` in any later block source config.

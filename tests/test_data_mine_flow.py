@@ -162,6 +162,35 @@ def test_community_archive_api_capture_writes_incremental_jsonl(tmp_path: Path):
     assert rows[0]["api_fetched_at"] == "2026-06-17T00:00:00+00:00"
 
 
+def test_community_archive_capture_plan_uses_latest_archive_and_incremental_checkpoint(tmp_path: Path):
+    archive = tmp_path / "archive.json"
+    archive.write_text(json.dumps({
+        "account": [{"account": {"username": "BodegaCat"}}],
+        "tweets": [
+            {"tweet": {"id_str": "111", "created_at": "Tue Nov 19 18:15:48 +0000 2024", "full_text": "Base one"}},
+            {"tweet": {"id_str": "222", "created_at": "Wed Nov 20 18:15:48 +0000 2024", "full_text": "Base two"}},
+        ],
+    }), encoding="utf-8")
+    incremental = tmp_path / "incremental.jsonl"
+    incremental.write_text(json.dumps({
+        "tweet_id": "333",
+        "created_at": "2024-11-21T18:15:48+00:00",
+        "text": "Latest captured row.",
+    }) + "\n", encoding="utf-8")
+
+    plan = source_mod.plan_community_archive_incremental_capture(
+        username="BodegaCat",
+        archive_path=archive,
+        incremental_paths=[incremental],
+        output_dir=tmp_path / "captures",
+    )
+
+    assert plan["username"] == "bodegacat"
+    assert plan["since_tweet_id"] == "333"
+    assert plan["latest_created_at"] == "2024-11-21T18:15:48+00:00"
+    assert plan["output"] == str(tmp_path / "captures" / "bodegacat.after-333.jsonl")
+
+
 def test_cli_community_archive_capture_incremental_writes_file(tmp_path: Path, monkeypatch):
     def fake_api_get(path, params, api_key):
         if path == "account":
@@ -179,12 +208,45 @@ def test_cli_community_archive_capture_incremental_writes_file(tmp_path: Path, m
         "--username", "BodegaCat",
         "--since-tweet-id", "333",
         "--output", str(output),
-        "--api-key", "test-key",
+        "--api-key", "unit-test-placeholder",  # git-secret-ignore
     ])
 
     rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
     assert rows[0]["tweet_id"] == "444"
     assert rows[0]["source_dataset"] == "api_incremental"
+
+
+def test_cli_community_archive_capture_can_plan_checkpoint_and_output(tmp_path: Path, monkeypatch):
+    calls = []
+
+    def fake_api_get(path, params, api_key):
+        calls.append((path, params, api_key))
+        if path == "account":
+            return [{"account_id": "acct-1", "username": "BodegaCat"}]
+        if path == "tweets":
+            return []
+        return []
+
+    monkeypatch.setattr(source_mod, "_community_archive_api_get", fake_api_get)
+    archive = tmp_path / "archive.json"
+    archive.write_text(json.dumps({
+        "account": [{"account": {"username": "BodegaCat"}}],
+        "tweets": [{"tweet": {"id_str": "222", "created_at": "Wed Nov 20 18:15:48 +0000 2024", "full_text": "Base"}}],
+    }), encoding="utf-8")
+    output_dir = tmp_path / "captures"
+
+    main([
+        "community-archive",
+        "capture-incremental",
+        "--username", "BodegaCat",
+        "--archive-path", str(archive),
+        "--output-dir", str(output_dir),
+        "--api-key", "unit-test-placeholder",  # git-secret-ignore
+    ])
+
+    output = output_dir / "bodegacat.after-222.jsonl"
+    assert output.exists()
+    assert calls[1][1]["tweet_id"] == "gt.222"
 
 
 def test_source_pipeline_builds_ordered_block(tmp_path: Path):

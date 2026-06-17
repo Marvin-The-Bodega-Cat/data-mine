@@ -13,6 +13,7 @@ from .sources import (
     build_block_from_sources,
     capture_community_archive_incremental,
     load_source_specs,
+    plan_community_archive_incremental_capture,
     source_config_fingerprint,
 )
 from .store import MineStore
@@ -117,13 +118,27 @@ def cmd_list_sources(args: argparse.Namespace) -> None:
 
 
 def cmd_community_archive_capture_incremental(args: argparse.Namespace) -> None:
+    output = args.output
+    since_tweet_id = args.since_tweet_id
+    plan = None
+    if not output or args.archive_path or args.incremental_path:
+        plan = plan_community_archive_incremental_capture(
+            username=args.username,
+            archive_path=args.archive_path,
+            incremental_paths=args.incremental_path,
+            output_dir=args.output_dir,
+        )
+        output = output or str(plan["output"])
+        since_tweet_id = since_tweet_id or str(plan["since_tweet_id"] or "") or None
     receipt = capture_community_archive_incremental(
         username=args.username,
-        output_path=args.output,
-        since_tweet_id=args.since_tweet_id,
+        output_path=output,
+        since_tweet_id=since_tweet_id,
         api_key=args.api_key,
         page_size=args.page_size,
     )
+    if plan:
+        receipt["plan"] = plan
     print(json.dumps(receipt, indent=2, sort_keys=True))
 
 
@@ -186,7 +201,10 @@ def build_parser() -> argparse.ArgumentParser:
     ca_sub=ca.add_subparsers(required=True)
     ca_capture=ca_sub.add_parser("capture-incremental")
     ca_capture.add_argument("--username", required=True)
-    ca_capture.add_argument("--output", required=True)
+    ca_capture.add_argument("--output")
+    ca_capture.add_argument("--output-dir", default="artifacts/community_archive/incremental")
+    ca_capture.add_argument("--archive-path")
+    ca_capture.add_argument("--incremental-path", action="append", default=[])
     ca_capture.add_argument("--since-tweet-id")
     ca_capture.add_argument("--api-key")
     ca_capture.add_argument("--page-size", type=int, default=1000)

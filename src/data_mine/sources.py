@@ -220,6 +220,38 @@ CommunityArchiveApiGet = Callable[[str, dict[str, str], str], list[dict[str, Any
 COMMUNITY_ARCHIVE_API_BASE = "https://fabxmporizzqflnftavs.supabase.co/rest/v1"
 
 
+def plan_community_archive_incremental_capture(
+    username: str,
+    archive_path: str | Path | None = None,
+    incremental_paths: list[str | Path] | None = None,
+    output_dir: str | Path = "artifacts/community_archive/incremental",
+) -> dict[str, str | None]:
+    username = _normalize_username(username)
+    latest_tweet_id: str | None = None
+    latest_created_at: str | None = None
+    rows: list[dict[str, Any]] = []
+    if archive_path:
+        archive = json.loads(Path(archive_path).read_text(encoding="utf-8"))
+        rows.extend(row.get("tweet", row) for row in archive.get("tweets", []))
+    for path in incremental_paths or []:
+        rows.extend(row.get("tweet", row) for row in _load_incremental_rows(Path(path)))
+    for row in rows:
+        tweet_id = _tweet_id(row)
+        if tweet_id and _tweet_id_sort_key(tweet_id) > _tweet_id_sort_key(latest_tweet_id):
+            latest_tweet_id = tweet_id
+        created_at = _parse_twitter_date(row.get("created_at"))
+        if created_at and (latest_created_at is None or created_at > latest_created_at):
+            latest_created_at = created_at
+    suffix = f"after-{latest_tweet_id}" if latest_tweet_id else "initial"
+    output = Path(output_dir) / f"{username}.{suffix}.jsonl"
+    return {
+        "username": username,
+        "since_tweet_id": latest_tweet_id,
+        "latest_created_at": latest_created_at,
+        "output": str(output),
+    }
+
+
 def capture_community_archive_incremental(
     username: str,
     output_path: str | Path,
@@ -356,6 +388,16 @@ def _load_incremental_rows(path: Path) -> list[dict[str, Any]]:
 
 def _tweet_id(tweet: dict[str, Any]) -> str:
     return str(tweet.get("id_str") or tweet.get("tweet_id") or tweet.get("id") or "").strip()
+
+
+def _tweet_id_sort_key(tweet_id: str | None) -> tuple[int, str]:
+    if not tweet_id:
+        return (-1, "")
+    value = str(tweet_id)
+    try:
+        return (int(value), value)
+    except ValueError:
+        return (-1, value)
 
 
 def _normalize_username(value: str) -> str:
