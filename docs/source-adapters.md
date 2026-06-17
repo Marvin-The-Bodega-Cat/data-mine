@@ -74,6 +74,26 @@ Emitted metadata includes `username`, `tweet_id`, `url`, `created_at`, engagemen
 
 Freshness caveat: raw Community Archive JSON is only complete up to that user's archive upload. Incremental captures are explicit files for now; live API fetch belongs behind a separate credentialed fetch step, not a hidden network surprise inside block creation.
 
+Create an API-backed incremental capture file with:
+
+```bash
+export COMMUNITY_ARCHIVE_ANON_KEY='...'
+datamine community-archive capture-incremental \
+  --username defenderofbasic \
+  --since-tweet-id <last-seen-tweet-id> \
+  --output artifacts/community_archive/incremental/defenderofbasic.incremental.jsonl
+```
+
+The command resolves `username -> account_id`, pages the PostgREST `tweets` table, normalizes rows to JSONL, and writes `source_dataset=api_incremental`. That file can then be listed under `incremental_path` or `incremental_paths` in any later block source config.
+
+This makes the shape explicit:
+
+```text
+Community Archive API -> incremental JSONL capture -> source pipeline -> frozen block
+```
+
+The capture file is the receipt. The block is the cut. Mixing those together is how systems learn to lie with timestamps.
+
 ## Ordered source pipelines
 
 `datamine block from-sources` preserves source order in record IDs and metadata:

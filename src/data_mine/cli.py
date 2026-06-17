@@ -8,7 +8,13 @@ from .models import Block, Record
 from .miners import MinerRegistry
 from .repo_builder import build_seed_from_artifact, render_repo
 from .search import search_artifacts, search_blocks
-from .sources import SourceRegistry, build_block_from_sources, load_source_specs, source_config_fingerprint
+from .sources import (
+    SourceRegistry,
+    build_block_from_sources,
+    capture_community_archive_incremental,
+    load_source_specs,
+    source_config_fingerprint,
+)
 from .store import MineStore
 
 
@@ -110,6 +116,17 @@ def cmd_list_sources(args: argparse.Namespace) -> None:
     print(json.dumps(SourceRegistry().names(), indent=2))
 
 
+def cmd_community_archive_capture_incremental(args: argparse.Namespace) -> None:
+    receipt = capture_community_archive_incremental(
+        username=args.username,
+        output_path=args.output,
+        since_tweet_id=args.since_tweet_id,
+        api_key=args.api_key,
+        page_size=args.page_size,
+    )
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser=argparse.ArgumentParser(prog="datamine")
     parser.add_argument("--store", default=".mine")
@@ -164,6 +181,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     sources=sub.add_parser("sources")
     sources.set_defaults(func=cmd_list_sources)
+
+    ca=sub.add_parser("community-archive")
+    ca_sub=ca.add_subparsers(required=True)
+    ca_capture=ca_sub.add_parser("capture-incremental")
+    ca_capture.add_argument("--username", required=True)
+    ca_capture.add_argument("--output", required=True)
+    ca_capture.add_argument("--since-tweet-id")
+    ca_capture.add_argument("--api-key")
+    ca_capture.add_argument("--page-size", type=int, default=1000)
+    ca_capture.set_defaults(func=cmd_community_archive_capture_incremental)
     return parser
 
 

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .miners import tokens
 from .models import Block, Record, stable_id
@@ -211,6 +214,96 @@ class SourceRegistry:
 
     def query(self, spec: SourceSpec) -> list[Record]:
         return self.get(spec.adapter).query(spec)
+
+
+CommunityArchiveApiGet = Callable[[str, dict[str, str], str], list[dict[str, Any]]]
+COMMUNITY_ARCHIVE_API_BASE = "https://fabxmporizzqflnftavs.supabase.co/rest/v1"
+
+
+def capture_community_archive_incremental(
+    username: str,
+    output_path: str | Path,
+    since_tweet_id: str | None = None,
+    api_key: str | None = None,
+    page_size: int = 1000,
+    api_get: CommunityArchiveApiGet | None = None,
+    fetched_at: str | None = None,
+) -> dict[str, Any]:
+    username = _normalize_username(username)
+    api_key = api_key or os.environ.get("COMMUNITY_ARCHIVE_ANON_KEY") or os.environ.get("CA_SUPABASE_ANON_KEY")
+    if not api_key:
+        raise ValueError("Community Archive API capture requires api_key or COMMUNITY_ARCHIVE_ANON_KEY")
+    api_get = api_get or _community_archive_api_get
+    account_rows = api_get("account", {"username": f"eq.{username}", "select": "account_id,username", "limit": "1"}, api_key)
+    if not account_rows:
+        raise ValueError(f"Community Archive account not found: {username}")
+    account = account_rows[0]
+    account_id = str(account.get("account_id") or account.get("id") or "")
+    if not account_id:
+        raise ValueError(f"Community Archive account has no account_id: {username}")
+    fetched_at = fetched_at or datetime.now(UTC).isoformat()
+    rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        params = {
+            "account_id": f"eq.{account_id}",
+            "select": "*",
+            "order": "tweet_id.asc",
+            "limit": str(page_size),
+            "offset": str(offset),
+        }
+        if since_tweet_id:
+            params["tweet_id"] = f"gt.{since_tweet_id}"
+        batch = api_get("tweets", params, api_key)
+        for row in batch:
+            rows.append(_normalize_api_incremental_row(row, username, account_id, fetched_at))
+        if len(batch) < page_size:
+            break
+        offset += page_size
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, sort_keys=True) + "\n")
+    return {"username": username, "account_id": account_id, "rows": len(rows), "output": str(out)}
+
+
+def _community_archive_api_get(path: str, params: dict[str, str], api_key: str) -> list[dict[str, Any]]:
+    url = f"{COMMUNITY_ARCHIVE_API_BASE}/{path}?{urllib.parse.urlencode(params)}"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    if not isinstance(data, list):
+        raise ValueError(f"Community Archive API returned non-list for {path}")
+    return [row for row in data if isinstance(row, dict)]
+
+
+def _normalize_api_incremental_row(row: dict[str, Any], username: str, account_id: str, fetched_at: str) -> dict[str, Any]:
+    tweet = row.get("tweet", row)
+    tweet_id = _tweet_id(tweet)
+    return {
+        "tweet_id": tweet_id,
+        "id_str": tweet_id,
+        "text": str(tweet.get("full_text") or tweet.get("text") or tweet.get("content") or ""),
+        "full_text": str(tweet.get("full_text") or tweet.get("text") or tweet.get("content") or ""),
+        "created_at": tweet.get("created_at"),
+        "favorite_count": _safe_int(tweet.get("favorite_count") or tweet.get("like_count")),
+        "retweet_count": _safe_int(tweet.get("retweet_count") or tweet.get("repost_count")),
+        "lang": tweet.get("lang"),
+        "entities": tweet.get("entities") or {},
+        "source": tweet.get("source"),
+        "username": username,
+        "account_id": account_id,
+        "source_dataset": "api_incremental",
+        "api_fetched_at": fetched_at,
+    }
 
 
 def _load_community_archive(spec: SourceSpec, username: str) -> dict[str, Any]:

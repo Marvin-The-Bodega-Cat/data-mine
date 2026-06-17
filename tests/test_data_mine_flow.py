@@ -5,6 +5,7 @@ from data_mine.cli import main
 from data_mine.models import Block, Record
 from data_mine.miners import MinerRegistry
 from data_mine.sources import SourceRegistry, SourceSpec, build_block_from_sources
+import data_mine.sources as source_mod
 
 
 def test_community_archive_source_reads_tweets_from_archive_fixture(tmp_path: Path):
@@ -113,6 +114,77 @@ def test_community_archive_source_merges_incremental_rows_and_dedupes(tmp_path: 
     assert records[1].metadata["url"] == "https://x.com/bodegacat/status/333"
     assert records[1].metadata["created_at"] == "2024-11-21T18:15:48+00:00"
     assert records[1].metadata["hashtags"] == ["fresh"]
+
+
+def test_community_archive_api_capture_writes_incremental_jsonl(tmp_path: Path):
+    calls = []
+
+    def fake_api_get(path, params, api_key):
+        calls.append((path, params, api_key))
+        if path == "account":
+            return [{"account_id": "acct-1", "username": "BodegaCat"}]
+        if path == "tweets":
+            return [
+                {
+                    "tweet_id": "333",
+                    "created_at": "2024-11-21T18:15:48+00:00",
+                    "full_text": "Fresh wallet feedback from the Community Archive API.",
+                    "favorite_count": 7,
+                    "retweet_count": 1,
+                    "lang": "en",
+                }
+            ]
+        raise AssertionError(path)
+
+    output = tmp_path / "bodegacat.incremental.jsonl"
+
+    receipt = source_mod.capture_community_archive_incremental(
+        username="BodegaCat",
+        output_path=output,
+        since_tweet_id="111",
+        api_key="unit-test-placeholder",  # git-secret-ignore
+        page_size=100,
+        api_get=fake_api_get,
+        fetched_at="2026-06-17T00:00:00+00:00",
+    )
+
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert receipt == {"username": "bodegacat", "account_id": "acct-1", "rows": 1, "output": str(output)}
+    assert calls[0] == ("account", {"username": "eq.bodegacat", "select": "account_id,username", "limit": "1"}, "unit-test-placeholder")
+    assert calls[1][0] == "tweets"
+    assert calls[1][1]["account_id"] == "eq.acct-1"
+    assert calls[1][1]["tweet_id"] == "gt.111"
+    assert rows[0]["tweet_id"] == "333"
+    assert rows[0]["text"] == "Fresh wallet feedback from the Community Archive API."
+    assert rows[0]["username"] == "bodegacat"
+    assert rows[0]["account_id"] == "acct-1"
+    assert rows[0]["source_dataset"] == "api_incremental"
+    assert rows[0]["api_fetched_at"] == "2026-06-17T00:00:00+00:00"
+
+
+def test_cli_community_archive_capture_incremental_writes_file(tmp_path: Path, monkeypatch):
+    def fake_api_get(path, params, api_key):
+        if path == "account":
+            return [{"account_id": "acct-1", "username": "BodegaCat"}]
+        if path == "tweets":
+            return [{"tweet_id": "444", "text": "API capture file can become a source block."}]
+        return []
+
+    monkeypatch.setattr(source_mod, "_community_archive_api_get", fake_api_get)
+    output = tmp_path / "capture.jsonl"
+
+    main([
+        "community-archive",
+        "capture-incremental",
+        "--username", "BodegaCat",
+        "--since-tweet-id", "333",
+        "--output", str(output),
+        "--api-key", "test-key",
+    ])
+
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert rows[0]["tweet_id"] == "444"
+    assert rows[0]["source_dataset"] == "api_incremental"
 
 
 def test_source_pipeline_builds_ordered_block(tmp_path: Path):
