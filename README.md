@@ -29,6 +29,7 @@ pytest -q
 datamine init --store .mine
 datamine sources
 datamine community-archive capture-incremental --username defenderofbasic --since-tweet-id <tweet-id> --output artifacts/community_archive/incremental/defenderofbasic.jsonl
+datamine extension enrich --input /path/to/brent-dill-trial-captures.jsonl --output-dir /tmp/extension-enriched --run-id scroll-001
 datamine block create --store .mine --block-id cat-feedback --title "Cat feedback batch" --source synthetic --text examples/cat_feedback.txt
 datamine block from-sources --store .mine --block-id source-pilot --title "Source pilot" --config examples/source_pipeline.json
 datamine mine --store .mine --block-id cat-feedback --miner repeated-requests

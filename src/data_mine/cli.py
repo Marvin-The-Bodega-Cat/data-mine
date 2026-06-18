@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .extension_enrichment import enrich_extension_capture_file
 from .models import Block, Record
 from .miners import MinerRegistry
 from .repo_builder import build_seed_from_artifact, render_repo
@@ -142,6 +143,15 @@ def cmd_community_archive_capture_incremental(args: argparse.Namespace) -> None:
     print(json.dumps(receipt, indent=2, sort_keys=True))
 
 
+def cmd_extension_enrich(args: argparse.Namespace) -> None:
+    receipt = enrich_extension_capture_file(
+        input_path=args.input,
+        output_dir=args.output_dir,
+        run_id=args.run_id,
+    )
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser=argparse.ArgumentParser(prog="datamine")
     parser.add_argument("--store", default=".mine")
@@ -209,6 +219,14 @@ def build_parser() -> argparse.ArgumentParser:
     ca_capture.add_argument("--api-key")
     ca_capture.add_argument("--page-size", type=int, default=1000)
     ca_capture.set_defaults(func=cmd_community_archive_capture_incremental)
+
+    extension=sub.add_parser("extension")
+    ext_sub=extension.add_subparsers(required=True)
+    ext_enrich=ext_sub.add_parser("enrich")
+    ext_enrich.add_argument("--input", required=True)
+    ext_enrich.add_argument("--output-dir", required=True)
+    ext_enrich.add_argument("--run-id")
+    ext_enrich.set_defaults(func=cmd_extension_enrich)
     return parser
 
 
